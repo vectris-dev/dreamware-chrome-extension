@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "X Post Screenshot",
+  "version": "0.1.0",
+  "description": "Adds a button to posts on X that downloads a screenshot of the whole post.",
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

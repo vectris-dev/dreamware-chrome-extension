@@ -1,0 +1,55 @@
+.igdl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.igdl-btn:hover {
+  opacity: 0.6;
+}
+
+.igdl-btn[data-busy] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.igdl-btn[data-error] {
+  color: rgb(255, 48, 64);
+}
+
+/* Profile header: sized like Instagram's 44px action buttons. Colours are copied
+   from the neighbouring button in JS. */
+.igdl-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.igdl-all:hover {
+  opacity: 0.8;
+}
+
+.igdl-all[data-state='error'] {
+  color: rgb(255, 48, 64) !important;
+}

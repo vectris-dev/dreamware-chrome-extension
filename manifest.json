@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "X Post Screenshot",
-  "version": "0.1.0",
-  "description": "Adds a button to posts on X that downloads a screenshot of the whole post.",
+  "name": "Dreamware Post Downloader",
+  "version": "0.2.0",
+  "description": "Downloads screenshots of X posts and original images/videos from Instagram posts.",
   "permissions": ["downloads"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -13,6 +13,12 @@
       "matches": ["https://x.com/*", "https://twitter.com/*"],
       "js": ["x.js"],
       "css": ["x.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.instagram.com/*"],
+      "js": ["instagram.js"],
+      "css": ["instagram.css"],
       "run_at": "document_idle"
     }
   ]

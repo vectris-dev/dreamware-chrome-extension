@@ -5,10 +5,16 @@
   // Chrome allows about 2 captureVisibleTab calls per second.
   const CAPTURE_GAP_MS = 600;
 
-  const ICON =
+  const SVG_OPEN =
     '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" ' +
-    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-    '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+  const CAMERA_ICON =
+    SVG_OPEN + '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+  const DOWNLOAD_ICON =
+    SVG_OPEN + '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>';
+  // Photos, videos and GIFs attached to a post (or to a post it quotes).
+  const MEDIA_SELECTOR =
+    '[data-testid="tweetPhoto"], [data-testid="videoPlayer"], [data-testid="videoComponent"]';
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const isStatusPage = () => /^\/[^/]+\/status\/\d+/.test(location.pathname);
@@ -22,18 +28,30 @@
         (el) => el.closest('article') === article
       );
       const group = reply?.closest('[role="group"]');
-      if (!group || group.querySelector(`:scope > .${BTN_CLASS}`)) continue;
-      group.appendChild(makeButton());
+      if (!group) continue;
+      let shot = group.querySelector(`:scope > .${BTN_CLASS}[data-kind="shot"]`);
+      if (!shot) {
+        shot = makeButton('shot', 'Download screenshot', CAMERA_ICON, screenshot);
+        group.appendChild(shot);
+      }
+      // Media can render after the action bar, so this is re-checked on every scan.
+      if (
+        !group.querySelector(`:scope > .${BTN_CLASS}[data-kind="media"]`) &&
+        article.querySelector(MEDIA_SELECTOR)
+      ) {
+        shot.after(makeButton('media', 'Download media', DOWNLOAD_ICON, downloadMedia));
+      }
     }
   }
 
-  function makeButton() {
+  function makeButton(kind, label, icon, action) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = BTN_CLASS;
-    btn.title = 'Download screenshot';
-    btn.setAttribute('aria-label', 'Download screenshot');
-    btn.innerHTML = ICON;
+    btn.dataset.kind = kind;
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    btn.innerHTML = icon;
     btn.addEventListener('click', async (e) => {
       // Stop X from treating the click as "open this post".
       e.preventDefault();
@@ -43,7 +61,7 @@
       btn.dataset.busy = '1';
       delete btn.dataset.error;
       try {
-        await screenshot(article);
+        await action(article);
       } catch (err) {
         console.error('[X Post Screenshot]', err);
         btn.dataset.error = '1';
@@ -69,7 +87,8 @@
   // ---------- Capture ----------
 
   async function screenshot(article) {
-    const name = fileName(article);
+    const { handle, id } = postInfo(article);
+    const name = `${handle}_${id}_${timestamp()}.png`;
     const ourButtons = [...article.querySelectorAll(`.${BTN_CLASS}`)];
     ourButtons.forEach((b) => (b.style.display = 'none'));
     const restoreOverlays = hideOverlays(article);
@@ -201,9 +220,94 @@
     });
   }
 
+  // ---------- Media download ----------
+
+  // Media URLs come from X's public embed endpoint (no login needed), fetched by the
+  // background worker. The video in the page is an MSE blob stream, so it can't be
+  // grabbed from the DOM. If the post has no media of its own, the quoted post's is used.
+  async function downloadMedia(article) {
+    const { handle, id } = postInfo(article);
+    const stamp = timestamp();
+    let items = [];
+    let owner = { handle, id };
+
+    let tweet = null;
+    try {
+      if (id !== 'unknown') tweet = await sendMessage({ type: 'xdl-tweet', id });
+    } catch (err) {
+      console.warn('[X Media] embed lookup failed, falling back to page images', err);
+    }
+    if (tweet) {
+      items = mediaFromTweet(tweet);
+      const quoted = tweet.quoted_tweet;
+      if (!items.length && quoted) {
+        items = mediaFromTweet(quoted);
+        owner = { handle: quoted.user?.screen_name || 'unknown', id: quoted.id_str || 'unknown' };
+      }
+    }
+    // Fallback (embed unavailable, e.g. sensitive or protected posts): photos only.
+    if (!items.length) {
+      items = [...article.querySelectorAll('[data-testid="tweetPhoto"] img')]
+        .map((img) => photoOriginal(img.src))
+        .filter(Boolean);
+    }
+    if (!items.length) throw new Error('No downloadable media found');
+
+    for (let i = 0; i < items.length; i++) {
+      const { url, ext } = items[i];
+      const suffix = items.length > 1 ? `_${i + 1}` : '';
+      await sendMessage({
+        type: 'dw-download',
+        url,
+        filename: `${owner.handle}_${owner.id}_${stamp}${suffix}.${ext}`,
+      });
+    }
+  }
+
+  function mediaFromTweet(tweet) {
+    const out = [];
+    for (const m of tweet.mediaDetails || []) {
+      if (m.type === 'photo') {
+        const photo = photoOriginal(m.media_url_https);
+        if (photo) out.push(photo);
+      } else if (m.type === 'video' || m.type === 'animated_gif') {
+        const best = (m.video_info?.variants || [])
+          .filter((v) => v.content_type === 'video/mp4')
+          .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+        if (best) out.push({ url: best.url, ext: 'mp4' });
+      }
+    }
+    return out;
+  }
+
+  // pbs.twimg.com/media/<key>.jpg or /media/<key>?format=jpg&name=small -> full size.
+  function photoOriginal(src) {
+    let u;
+    try {
+      u = new URL(src);
+    } catch {
+      return null;
+    }
+    if (u.hostname !== 'pbs.twimg.com' || !u.pathname.startsWith('/media/')) return null;
+    const m = u.pathname.match(/^\/media\/([^./]+)(?:\.(\w+))?$/);
+    if (!m) return null;
+    const ext = m[2] || u.searchParams.get('format') || 'jpg';
+    return { url: `https://pbs.twimg.com/media/${m[1]}?format=${ext}&name=orig`, ext };
+  }
+
+  function sendMessage(msg) {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(msg, (res) => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        if (!res || res.error) return reject(new Error(res?.error || 'Request failed'));
+        resolve(res.data ?? res.id);
+      });
+    });
+  }
+
   // ---------- File name ----------
 
-  function fileName(article) {
+  function postInfo(article) {
     const userLink = article.querySelector('[data-testid="User-Name"] a[href^="/"]');
     const handle = userLink?.getAttribute('href').split('/')[1] || 'unknown';
 
@@ -217,13 +321,16 @@
       link?.getAttribute('href').match(/\/status\/(\d+)/)?.[1] ||
       location.pathname.match(/\/status\/(\d+)/)?.[1] ||
       'unknown';
+    return { handle, id };
+  }
 
+  function timestamp() {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
-    const stamp =
+    return (
       `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-` +
-      `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-    return `${handle}_${id}_${stamp}.png`;
+      `${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+    );
   }
 
   function download(canvas, name) {

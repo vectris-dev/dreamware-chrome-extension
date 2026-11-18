@@ -1,10 +1,10 @@
 # Dreamware Post Downloader (Chrome extension, MV3, personal use only)
 
-No build step: plain JS loaded unpacked from this folder. See README.md for install and behaviour. One content script per site (`x.js`, `instagram.js`), shared `background.js`.
+No build step: plain JS loaded unpacked from this folder. See README.md for install and behaviour. One content script per site (`x.js`, `instagram.js`, `facebook.js`), shared `background.js`.
 
 ## Non-obvious notes
 
-- `<all_urls>` host permission is there for `captureVisibleTab`; content scripts only match x.com, twitter.com and www.instagram.com. No store listing, so the broad permission is accepted.
+- `<all_urls>` host permission is there for `captureVisibleTab`; content scripts only match x.com, twitter.com, www.instagram.com and www.facebook.com. No store listing, so the broad permission is accepted.
 - Testing via claude-in-chrome: the extension is loaded in that Chrome, but code changes need a manual reload in `chrome://extensions` (Steve has to do it). On 2026-11-06 `captureVisibleTab` never resolved there (suspected: automated window behind other windows), so `requestCapture` has a 5s timeout.
 
 ### X
@@ -25,3 +25,9 @@ No build step: plain JS loaded unpacked from this folder. See README.md for inst
 - Download all (profile pages): button goes in `main header`'s action row, found by the English text of its buttons (`PROFILE_ACTIONS`: Follow, Message, Edit profile...) and inserted after the last one; colours copied from that neighbour. The run state lives outside the button because Instagram re-renders or reuses the header across navigation. As of 2026-11-08 `/api/v1/users/web_profile_info/`, `/api/v1/feed/user/<id>/` and `/feed/user/<name>/username/` all 404 (the grid now loads via GraphQL with rotating doc ids), while media info still works. So the run scrolls the profile's posts tab, collects `/p/` and `/reel/` codes from grid links outside `header`, and fetches each via media info. Total comes from the header's "N posts" text. Files go in a `username/` subfolder. Delays (`POST_GAP_MS`, `FILE_GAP_MS`, `SCROLL_WAIT_MS`) and 429 back-off are there to avoid tripping Instagram's rate limits on the account.
 - Scope decisions from Steve: home feed, post pages, Reels (not stories); carousels download all slides; filename `username_postcode_YYYYMMDD-HHMMSS[_n].ext`.
 - Reels links with long share codes (e.g. 39 chars) don't decode to a media id (media info returns 400), but Instagram rewrites the URL to the short code on load, so the button still works.
+
+### Facebook
+
+- As of 2026-11-16 `/photo/?fbid=` HTML is an empty shell (data comes via GraphQL), and grid thumbnails are 206px signed URLs (`oh`/`oe` params, so no rewriting to originals). The photo viewer does load the full-size image, so "Download all" drives it: click the first grid link, save the largest `[role="dialog"] img` once loaded, click `[aria-label="Next photo"]`. The URL's `fbid` changes instantly on Next while the image loads ~1s later, so it waits for a new, complete `src`. At the end of a set Next stays visible but `fbid` stops changing; that ends the run.
+- The cover photo is also a `/photo/` link in `[role="main"]`, so grid links are filtered by `set` param: the album's own `set` on `/media/set/`, otherwise the most common one (`pb.<id>...` on the Photos tab).
+- The button is `position: fixed` bottom-left (Facebook's chat bubbles are bottom-right) instead of inside the obfuscated layout; a 1s poll shows/hides it across SPA navigation.

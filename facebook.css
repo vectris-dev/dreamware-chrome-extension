@@ -1,0 +1,28 @@
+/* "Download all" on photo grids: fixed bottom-left, clear of Facebook's chat bubbles. */
+.fbdl-all {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #0866ff;
+  color: #fff;
+  font: 600 15px/20px system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.fbdl-all:hover {
+  filter: brightness(1.1);
+}
+
+.fbdl-all[data-state='error'] {
+  background: rgb(228, 30, 63);
+}

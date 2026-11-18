@@ -25,3 +25,9 @@ A download arrow after the Share icon on posts in the home feed, post pages, the
 Media URLs come from Instagram's own web API (`/api/v1/media/<id>/info/`, using your logged-in session), and files are saved with `chrome.downloads`.
 
 On a profile page, a download button in the profile header (after Follow/Message, or Edit profile on your own) downloads every post on the account (same naming, all files in a `username/` subfolder of Downloads). While running it shows progress (`12/210`); click it again to stop. It scrolls the profile's post grid to make Instagram load every post, then fetches each one through the same media info endpoint as the single-post button, about one post per second, backing off on rate limits. Stay on the profile while it runs (leaving stops it). Posts that fail are skipped and counted in the final status. Private accounts only work if you follow them. Turn off Chrome's "Ask where to save each file" first or you'll get a dialog per file.
+
+## Facebook (`facebook.js`, `facebook.css`)
+
+On photo grids (a page's or profile's Photos tabs, and album pages under `/media/set/`), a "Download all" button in the bottom-left corner downloads every photo in the grid at full size, into a `pagename/` subfolder, named `pagename_photoid_YYYYMMDD-HHMMSS.ext`. While running it shows progress (`12 saved`); click it again to stop, or close the photo viewer.
+
+It works by driving Facebook's own photo viewer: it opens the first photo, saves the full-size image the viewer loads, clicks Next, and repeats until the photo stops changing (end of the set). Videos in a set are skipped and counted as failed. Like Instagram, turn off "Ask where to save each file" first.

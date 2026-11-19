@@ -3,7 +3,8 @@
   // Public web app id Instagram's own site sends with its API requests.
   const IG_APP_ID = '936619743392459';
   const SHORTCODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  const CODE_RE = /\/(?:p|reels?|tv)\/([A-Za-z0-9_-]+)/;
+  // `(?!audio\/)` skips the audio page links (/reels/audio/<id>/) posts carry.
+  const CODE_RE = /\/(?:p|reels?|tv)\/(?!audio\/)([A-Za-z0-9_-]+)/;
 
   const ICON =
     '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" ' +
